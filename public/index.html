@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Пътеки — Bulgaria Travel Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">Пътеки</span>
+    <span class="brand-sub">Bulgaria travel map</span>
+  </div>
+  <div class="topbar-right">
+    <span id="last-updated" class="freshness"></span>
+    <button id="refresh-btn" class="btn-ghost">Refresh map data</button>
+  </div>
+</header>
+
+<div class="layout">
+  <div id="map"></div>
+
+  <aside id="sidebar">
+    <section class="panel">
+      <div class="panel-header">
+        <h2>Roads travelled</h2>
+        <span class="count-badge"><span id="roads-count">0</span></span>
+      </div>
+      <ul id="roads-list" class="item-list"><li class="empty">Loading roads…</li></ul>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <h2>Cities visited</h2>
+        <span class="count-badge"><span id="cities-visited">0</span> / <span id="cities-total">–</span></span>
+      </div>
+      <ul id="cities-list" class="item-list"><li class="empty">Loading cities…</li></ul>
+    </section>
+  </aside>
+</div>
+
+<div id="trip-modal" class="modal">
+  <div class="modal-card">
+    <h3>Log this trip</h3>
+    <p class="modal-road-name" id="trip-road-name"></p>
+    <form id="trip-form">
+      <label for="trip-start">Where did you start?</label>
+      <input id="trip-start" type="text" placeholder="e.g. Sofia" required />
+      <label for="trip-end">Where did you end?</label>
+      <input id="trip-end" type="text" placeholder="e.g. Plovdiv" required />
+      <div class="modal-actions">
+        <button type="button" id="trip-cancel" class="btn-ghost">Cancel</button>
+        <button type="submit" class="btn-primary">Save trip</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

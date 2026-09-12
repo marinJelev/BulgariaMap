@@ -1,0 +1,15 @@
+{
+  "name": "bulgaria-travel-map",
+  "version": "1.0.0",
+  "description": "Interactive map of main and secondary roads and cities in Bulgaria, with weekly OpenStreetMap data refresh.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "fetch-data": "node -e \"require('./scripts/fetchOSMData').fetchAndSaveOSMData().then(r => console.log(r)).catch(e => { console.error(e); process.exit(1); })\""
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "node-cron": "^3.0.3",
+    "node-fetch": "^2.7.0"
+  }
+}
