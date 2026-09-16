@@ -1,108 +1,109 @@
 # Пътеки — Bulgaria Travel Map
 
-An interactive map of Bulgaria's primary and secondary roads and its cities/towns.
-Click a road to mark it travelled (it turns blue) and log where you started and
-ended; click a city pin to mark it visited. Both lists live in the sidebar, with
-a visited/total counter for cities.
+A Bulgaria-only interactive map with two trackers:
 
-Road and city geometry comes from **OpenStreetMap** (via the Overpass API), so
-it's the real road network, not a stylized approximation.
+- **Cities** — mark any of Bulgaria's 261 official towns/cities as visited.
+- **100 National Tourist Sites** — track the official BTS ("Български
+  туристически съюз") list of 100 numbered sites. Several points bundle more
+  than one attraction (e.g. Sofia's point spans several museums), so there
+  are 250 individually-checkable attractions grouped under those 100 points.
+  Reach 25 / 50 / 100 distinct points and you unlock the real Bronze / Silver
+  / Gold badge tiers the physical movement uses.
 
-## 1. Requirements
+Everything you mark is saved in your **browser's local storage** — nothing
+is sent to a server. This is a fully static site: no backend, no database,
+no scheduled jobs. That makes it a natural fit for Vercel.
 
-- [Node.js](https://nodejs.org) 18 or later
-- An internet connection (needed once, to download the map data — after that
-  the app works offline against the cached files in `data/`)
+## 1. Deploying on Vercel
 
-## 2. Setup
+Push this repo to GitHub (already done if you're reading this from
+`marinJelev/BulgariaMap`) and import it into Vercel as a new project.
+`vercel.json` tells Vercel the deployable site lives in `public/` — no other
+configuration is needed; there's no build step.
+
+## 2. Running it locally
 
 ```bash
-cd bulgaria-map
-npm install
 npm start
 ```
 
-The first run will fetch Bulgaria's road and city data from OpenStreetMap
-(takes ~30–90 seconds depending on Overpass server load). After that, open:
+This runs `npx serve public` and opens the site at `http://localhost:3000`.
+No dependencies to install — `serve` is fetched on demand by `npx`. If you'd
+rather not touch npm at all, any static file server works just as well, e.g.:
 
-```
-http://localhost:3000
+```bash
+cd public && python3 -m http.server 3000
 ```
 
 ## 3. Using it
 
-- The map is locked to Bulgaria: everything outside the national border is
-  greyed out, and you can't pan or zoom out far enough to see neighboring
-  countries.
-- **Roads**: click any road on the map. It turns blue and a small form pops up
-  asking where you started and ended that trip — save it and it appears in the
-  "Roads travelled" list. Click a blue road again to un-mark it, or use the ×
-  on its list entry.
-- **Cities**: click a pin to mark that city/town visited (it turns gold). The
-  counter shows how many of Bulgaria's cities/towns you've visited out of the
-  total. Click again, or use the × in the list, to un-mark it.
-- Your marks are saved in your **browser's local storage**, tied to this
-  browser on this computer. They are *not* stored on any server, so clearing
-  browser data will reset them, and they won't follow you to a different
-  browser or device.
+- The map is locked to Bulgaria — everything outside the border is greyed
+  out, and you can't pan/zoom out to neighboring countries.
+- **100 Sites tab**: sites are grouped by their official point number. Click
+  a group to expand it and check off individual attractions, or click a star
+  pin on the map and use "Mark as visited" in its popup. The progress bar
+  and Bronze/Silver/Gold badges track *distinct points* reached (checking
+  any one attraction at a point counts that whole point, same as the
+  physical stamp book).
+- **Cities tab**: click a pin (or check the box in the list) to mark a
+  town/city visited.
+- Use the **Cities** / **100 Sites** checkboxes in the top bar to hide either
+  layer on the map if it gets visually busy.
+- Search boxes in each tab filter the sidebar list by name.
 
-## 4. Keeping the road/city data current
-
-- A **"Refresh map data"** button in the top bar re-fetches everything from
-  OpenStreetMap immediately, any time you want.
-- The server also schedules an **automatic weekly refresh** (Sundays at
-  03:00, server time) using `node-cron`. Two things worth knowing:
-  - This only fires while `npm start` is left running continuously. If you
-    stop the server (e.g. close the terminal, shut down your laptop) between
-    Sundays, that week's automatic refresh won't happen — it's not a
-    background service that survives your machine being off. To get genuinely
-    unattended weekly updates, you'd want to run this on a small always-on
-    server or a host with its own cron/scheduler.
-  - The schedule is set in `server.js` (`cron.schedule('0 3 * * 0', ...)`) —
-    change the cron expression there if you want a different day/time.
-- Refreshing re-downloads the full road/city dataset, so brand-new roads or
-  towns added to OpenStreetMap will show up. Your travelled/visited marks are
-  matched by OpenStreetMap's internal IDs, which are normally stable — but if
-  a road is heavily redrawn or split in OpenStreetMap between refreshes, its
-  ID can change and your mark on it could be lost. This is uncommon but worth
-  knowing about.
-
-## 5. Notes on what counts as a "city"
-
-Bulgaria doesn't distinguish "town" vs "city" the way some countries do —
-every officially incorporated settlement is a "град" (city/town). This app
-counts every OpenStreetMap node tagged `place=city` or `place=town` within
-Bulgaria, which should closely match Bulgaria's ~257 official cities/towns.
-If you'd rather use a stricter or looser definition, that's a one-line change
-in `scripts/fetchOSMData.js` (the `CITIES_QUERY` regex).
-
-## 6. Project structure
+## 4. Project structure
 
 ```
 bulgaria-map/
-├── server.js              Express server, refresh endpoint, weekly cron job
-├── scripts/
-│   └── fetchOSMData.js    Overpass queries → GeoJSON conversion (roads, cities, boundary)
-├── data/                  Cached roads.geojson / cities.geojson / boundary.geojson (auto-generated)
-├── public/
+├── public/                     Everything Vercel deploys, as-is
 │   ├── index.html
 │   ├── style.css
-│   └── app.js             Map rendering, Bulgaria mask, click handling, localStorage
-└── package.json
+│   ├── app.js                  Map, tabs, badges, search, localStorage
+│   └── data/
+│       ├── boundary.geojson    Bulgaria's national outline (mask + bounds)
+│       ├── cities.geojson      261 official towns/cities
+│       └── tourist-sites.json  250 attractions across the 100 official points
+├── scripts/
+│   └── build-tourist-sites.js  Regenerates tourist-sites.json (see below)
+├── vercel.json                 Tells Vercel to deploy the public/ folder
+├── package.json                Just a local-dev convenience script
+└── README.md
 ```
 
-## 7. Troubleshooting
+## 5. Where the data comes from
 
-- **"Could not load road/city data"** in the sidebar: the initial Overpass
-  fetch likely failed (slow/unreachable Overpass server, or no internet at
-  startup). Check the terminal for an error, then click "Refresh map data"
-  once you have a connection.
-- **Map isn't greyed out outside Bulgaria / no mask visible**: building the
-  national outline is a separate, non-critical step (see `boundary.geojson`
-  in `data/`). If Overpass's boundary relation query fails or times out, the
-  app logs a warning and falls back to a plain bounding-box restriction
-  instead of the exact border mask — roads and cities are unaffected either
-  way. Hitting "Refresh map data" will retry building the outline.
-- **Overpass request failed / timeout**: the public Overpass API
-  (`overpass-api.de`) occasionally rate-limits or is briefly overloaded.
-  Wait a minute and hit refresh again.
+- **Boundary**: Bulgaria's polygon from the
+  [`datasets/geo-countries`](https://github.com/datasets/geo-countries)
+  public dataset (Natural Earth–derived), fetched once and committed as a
+  static file.
+- **Cities**: the 261 settlements officially classed as town/city (not
+  village) from [`yurukov/Bulgaria-geocoding`](https://github.com/yurukov/Bulgaria-geocoding)'s
+  `settlements_loc.csv`, filtered and converted once.
+- **100 Sites**: transcribed from the official BTS list at
+  [btsbg.org](https://www.btsbg.org/nacionalni-dvizheniya/100-nacionalni-turisticheski-obekta),
+  geocoded at town/landmark precision (not individual-building precision).
+  A handful of entries near the end of the source page weren't cleanly
+  attributed to a town in the page's markup; those were placed using the
+  best available knowledge of the actual landmark and are worth
+  double-checking if you spot one in the wrong place.
+
+None of this data changes often (an administrative boundary, a city list, and
+a 60-year-old numbered heritage program), so unlike the old roads feature
+this app replaced, there's no runtime fetching or scheduled refresh — these
+are just static files. To fix or extend the tourist-sites data, edit
+`scripts/build-tourist-sites.js` (the `RAW_SITES` array and `LOCATIONS`
+coordinates) and run:
+
+```bash
+npm run build:tourist-sites
+```
+
+To refresh the boundary or cities data, re-fetch from the sources above and
+convert to the same GeoJSON shape used in `public/data/`.
+
+## 6. Notes / limitations
+
+- City and site pins use town/landmark-level coordinates, not exact street
+  addresses — fine for a checklist map, not for turn-by-turn navigation.
+- Your progress lives in this browser only. Clearing site data, or opening
+  the app in a different browser/device, starts fresh.

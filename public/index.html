@@ -17,8 +17,8 @@
     <span class="brand-sub">Bulgaria travel map</span>
   </div>
   <div class="topbar-right">
-    <span id="last-updated" class="freshness"></span>
-    <button id="refresh-btn" class="btn-ghost">Refresh map data</button>
+    <label class="layer-toggle"><input type="checkbox" id="toggle-cities-layer" checked /> Cities</label>
+    <label class="layer-toggle"><input type="checkbox" id="toggle-sites-layer" checked /> 100 Sites</label>
   </div>
 </header>
 
@@ -26,39 +26,44 @@
   <div id="map"></div>
 
   <aside id="sidebar">
-    <section class="panel">
-      <div class="panel-header">
-        <h2>Roads travelled</h2>
-        <span class="count-badge"><span id="roads-count">0</span></span>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="sites">100 Sites</button>
+      <button class="tab-btn" data-tab="cities">Cities</button>
+    </div>
+
+    <section class="tab-panel active" id="tab-sites">
+      <div class="progress-block">
+        <div class="progress-header">
+          <span class="progress-count"><span id="sites-points-visited">0</span> / 100 points</span>
+        </div>
+        <div class="progress-bar"><div class="progress-bar-fill" id="sites-progress-fill"></div></div>
+        <div class="badges">
+          <div class="badge" id="badge-bronze" data-threshold="25">
+            <span class="badge-icon">🥉</span><span class="badge-label">Bronze<br/>25</span>
+          </div>
+          <div class="badge" id="badge-silver" data-threshold="50">
+            <span class="badge-icon">🥈</span><span class="badge-label">Silver<br/>50</span>
+          </div>
+          <div class="badge" id="badge-gold" data-threshold="100">
+            <span class="badge-icon">🥇</span><span class="badge-label">Gold<br/>100</span>
+          </div>
+        </div>
       </div>
-      <ul id="roads-list" class="item-list"><li class="empty">Loading roads…</li></ul>
+      <input type="search" id="sites-search" class="search-box" placeholder="Search sites or towns…" />
+      <ul id="sites-list" class="group-list"><li class="empty">Loading sites…</li></ul>
     </section>
 
-    <section class="panel">
-      <div class="panel-header">
-        <h2>Cities visited</h2>
-        <span class="count-badge"><span id="cities-visited">0</span> / <span id="cities-total">–</span></span>
+    <section class="tab-panel" id="tab-cities">
+      <div class="progress-block">
+        <div class="progress-header">
+          <span class="progress-count"><span id="cities-visited-count">0</span> / <span id="cities-total-count">–</span> visited</span>
+        </div>
+        <div class="progress-bar"><div class="progress-bar-fill" id="cities-progress-fill"></div></div>
       </div>
+      <input type="search" id="cities-search" class="search-box" placeholder="Search cities…" />
       <ul id="cities-list" class="item-list"><li class="empty">Loading cities…</li></ul>
     </section>
   </aside>
-</div>
-
-<div id="trip-modal" class="modal">
-  <div class="modal-card">
-    <h3>Log this trip</h3>
-    <p class="modal-road-name" id="trip-road-name"></p>
-    <form id="trip-form">
-      <label for="trip-start">Where did you start?</label>
-      <input id="trip-start" type="text" placeholder="e.g. Sofia" required />
-      <label for="trip-end">Where did you end?</label>
-      <input id="trip-end" type="text" placeholder="e.g. Plovdiv" required />
-      <div class="modal-actions">
-        <button type="button" id="trip-cancel" class="btn-ghost">Cancel</button>
-        <button type="submit" class="btn-primary">Save trip</button>
-      </div>
-    </form>
-  </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

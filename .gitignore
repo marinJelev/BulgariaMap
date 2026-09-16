@@ -1,4 +1,2 @@
-node_modules/
-data/*.geojson
-data/*.json
 .DS_Store
+node_modules/

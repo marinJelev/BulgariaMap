@@ -1,65 +1,6 @@
-const STORAGE_ROADS_KEY = 'bgmap.roads.v1';
-const STORAGE_CITIES_KEY = 'bgmap.cities.v1';
-
-const map = L.map('map', { preferCanvas: true, maxBoundsViscosity: 1.0 }).setView([42.75, 25.3], 7);
-
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-  maxZoom: 19
-}).addTo(map);
-
-// A pane between the base tiles and the roads/cities layers, so the
-// Bulgaria-only mask always sits under the data regardless of load order.
-map.createPane('maskPane');
-map.getPane('maskPane').style.zIndex = 350;
-map.getPane('maskPane').style.pointerEvents = 'none';
-
-const BULGARIA_FALLBACK_BOUNDS = L.latLngBounds([40.9, 22.2], [44.3, 28.7]);
-
-function restrictToBulgaria(bounds) {
-  map.fitBounds(bounds.pad(0.03));
-  map.setMaxBounds(bounds.pad(0.2));
-  map.setMinZoom(map.getBoundsZoom(bounds.pad(0.2)));
-}
-
-fetch('/data/boundary.geojson')
-  .then(r => {
-    if (!r.ok) throw new Error('boundary.geojson not available');
-    return r.json();
-  })
-  .then(data => {
-    const ring = data.geometry.coordinates[0].map(([lng, lat]) => [lat, lng]);
-    const world = [[-89, -179], [-89, 179], [89, 179], [89, -179]];
-
-    // Grey out everything that isn't Bulgaria.
-    L.polygon([world, ring], {
-      stroke: false,
-      fillColor: '#14201A',
-      fillOpacity: 0.82,
-      pane: 'maskPane'
-    }).addTo(map);
-
-    // A subtle outline of the national border on top of the mask.
-    L.polygon(ring, {
-      color: '#D46A85',
-      weight: 1.5,
-      opacity: 0.55,
-      fill: false,
-      pane: 'maskPane'
-    }).addTo(map);
-
-    restrictToBulgaria(L.latLngBounds(ring));
-  })
-  .catch(err => {
-    console.warn('No national boundary outline available, using a bounding-box restriction instead.', err.message);
-    restrictToBulgaria(BULGARIA_FALLBACK_BOUNDS);
-  });
-
-let travelledRoads = loadJSON(STORAGE_ROADS_KEY, {});
-let visitedCities = loadJSON(STORAGE_CITIES_KEY, {});
-
-let roadLayer;
-let cityLayer;
+/* ---------------- Storage ---------------- */
+const STORAGE_CITIES_KEY = 'bgmap.cities.v2';
+const STORAGE_SITES_KEY = 'bgmap.sites.v1';
 
 function loadJSON(key, fallback) {
   try {
@@ -69,8 +10,12 @@ function loadJSON(key, fallback) {
     return fallback;
   }
 }
-function saveRoads() { localStorage.setItem(STORAGE_ROADS_KEY, JSON.stringify(travelledRoads)); }
-function saveCities() { localStorage.setItem(STORAGE_CITIES_KEY, JSON.stringify(visitedCities)); }
+function saveJSON(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+
+let visitedCities = loadJSON(STORAGE_CITIES_KEY, {});   // { ekatteId: true }
+let visitedSites = loadJSON(STORAGE_SITES_KEY, {});      // { siteId: true }
+function saveCities() { saveJSON(STORAGE_CITIES_KEY, visitedCities); }
+function saveSites() { saveJSON(STORAGE_SITES_KEY, visitedSites); }
 
 function escapeHTML(str) {
   return String(str).replace(/[&<>"']/g, s => ({
@@ -78,159 +23,98 @@ function escapeHTML(str) {
   }[s]));
 }
 
-/* ---------------- Trip modal ---------------- */
+/* ---------------- Map setup ---------------- */
 
-const modal = document.getElementById('trip-modal');
-const modalForm = document.getElementById('trip-form');
-const startInput = document.getElementById('trip-start');
-const endInput = document.getElementById('trip-end');
-const modalRoadName = document.getElementById('trip-road-name');
-let pendingRoadId = null;
+const map = L.map('map', { preferCanvas: true, maxBoundsViscosity: 1.0 }).setView([42.75, 25.3], 7);
 
-function openTripModal(roadId, roadLabel) {
-  pendingRoadId = roadId;
-  modalRoadName.textContent = roadLabel;
-  startInput.value = '';
-  endInput.value = '';
-  modal.classList.add('open');
-  startInput.focus();
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors',
+  maxZoom: 19
+}).addTo(map);
+
+map.createPane('maskPane');
+map.getPane('maskPane').style.zIndex = 350;
+map.getPane('maskPane').style.pointerEvents = 'none';
+
+const citiesLayerGroup = L.layerGroup().addTo(map);
+const sitesLayerGroup = L.layerGroup().addTo(map);
+
+const BULGARIA_FALLBACK_BOUNDS = L.latLngBounds([40.9, 22.2], [44.3, 28.7]);
+
+function restrictToBulgaria(bounds) {
+  map.fitBounds(bounds.pad(0.03));
+  map.setMaxBounds(bounds.pad(0.2));
+  map.setMinZoom(map.getBoundsZoom(bounds.pad(0.2)));
 }
-function closeTripModal() {
-  modal.classList.remove('open');
-  pendingRoadId = null;
-}
-document.getElementById('trip-cancel').addEventListener('click', () => {
-  // If the user cancels right after marking a road, drop the mark entirely
-  // rather than leaving a blue road with no trip info.
-  if (pendingRoadId && travelledRoads[pendingRoadId] && !travelledRoads[pendingRoadId].start) {
-    delete travelledRoads[pendingRoadId];
-    saveRoads();
-    refreshRoadStyle(pendingRoadId);
-    renderRoadsList();
-  }
-  closeTripModal();
-});
-modalForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  if (!pendingRoadId) return;
-  const start = startInput.value.trim();
-  const end = endInput.value.trim();
-  if (!start || !end) return;
-  travelledRoads[pendingRoadId].start = start;
-  travelledRoads[pendingRoadId].end = end;
-  saveRoads();
-  renderRoadsList();
-  closeTripModal();
-});
 
-/* ---------------- Roads ---------------- */
-
-fetch('/data/roads.geojson')
-  .then(r => r.json())
+fetch('data/boundary.geojson')
+  .then(r => { if (!r.ok) throw new Error('boundary.geojson not available'); return r.json(); })
   .then(data => {
-    roadLayer = L.geoJSON(data, {
-      style: feature => styleForRoad(feature),
-      onEachFeature: (feature, layer) => {
-        layer.on('click', () => onRoadClick(layer));
-      }
+    const ring = data.geometry.coordinates[0].map(([lng, lat]) => [lat, lng]);
+    const world = [[-89, -179], [-89, 179], [89, 179], [89, -179]];
+
+    L.polygon([world, ring], {
+      stroke: false, fillColor: '#14201A', fillOpacity: 0.82, pane: 'maskPane'
     }).addTo(map);
-    renderRoadsList();
+
+    L.polygon(ring, {
+      color: '#D46A85', weight: 1.5, opacity: 0.55, fill: false, pane: 'maskPane'
+    }).addTo(map);
+
+    restrictToBulgaria(L.latLngBounds(ring));
   })
   .catch(err => {
-    console.error('Failed to load road data', err);
-    document.getElementById('roads-list').innerHTML =
-      '<li class="empty">Could not load road data. Make sure the server fetched OpenStreetMap data successfully (check the terminal).</li>';
+    console.warn('No national boundary outline available, using a bounding-box restriction instead.', err.message);
+    restrictToBulgaria(BULGARIA_FALLBACK_BOUNDS);
   });
 
-function styleForRoad(feature) {
-  const id = feature.properties.id;
-  const travelled = !!travelledRoads[id];
-  return {
-    color: travelled ? '#2E6FD9' : '#8B9A8E',
-    weight: travelled ? 5 : 3,
-    opacity: travelled ? 0.95 : 0.5
-  };
-}
+/* ---------------- Tabs ---------------- */
 
-function refreshRoadStyle(id) {
-  if (!roadLayer) return;
-  roadLayer.eachLayer(layer => {
-    if (String(layer.feature.properties.id) === String(id)) {
-      layer.setStyle(styleForRoad(layer.feature));
-    }
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
   });
-}
+});
 
-function onRoadClick(layer) {
-  const feature = layer.feature;
-  const id = feature.properties.id;
-  const label = feature.properties.name;
+/* ---------------- Layer toggles ---------------- */
 
-  if (travelledRoads[id]) {
-    delete travelledRoads[id];
-    saveRoads();
-    layer.setStyle(styleForRoad(feature));
-    renderRoadsList();
-  } else {
-    travelledRoads[id] = { name: label, ref: feature.properties.ref, start: '', end: '' };
-    saveRoads();
-    layer.setStyle(styleForRoad(feature));
-    renderRoadsList();
-    openTripModal(id, label);
-  }
-}
-
-function renderRoadsList() {
-  const list = document.getElementById('roads-list');
-  const ids = Object.keys(travelledRoads);
-  document.getElementById('roads-count').textContent = ids.length;
-  if (ids.length === 0) {
-    list.innerHTML = '<li class="empty">No roads marked yet. Click a road on the map to log a trip.</li>';
-    return;
-  }
-  list.innerHTML = ids.map(id => {
-    const r = travelledRoads[id];
-    const trip = (r.start && r.end)
-      ? `${escapeHTML(r.start)} → ${escapeHTML(r.end)}`
-      : '<span class="muted">start/end not set</span>';
-    return `<li>
-      <div class="item-main">
-        <span class="item-title">${escapeHTML(r.name)}${r.ref ? ` <span class="ref">(${escapeHTML(r.ref)})</span>` : ''}</span>
-        <button class="remove-btn" data-type="road" data-id="${id}" title="Remove">&times;</button>
-      </div>
-      <div class="item-sub">${trip}</div>
-    </li>`;
-  }).join('');
-}
+document.getElementById('toggle-cities-layer').addEventListener('change', (e) => {
+  if (e.target.checked) map.addLayer(citiesLayerGroup); else map.removeLayer(citiesLayerGroup);
+});
+document.getElementById('toggle-sites-layer').addEventListener('change', (e) => {
+  if (e.target.checked) map.addLayer(sitesLayerGroup); else map.removeLayer(sitesLayerGroup);
+});
 
 /* ---------------- Cities ---------------- */
 
-fetch('/data/cities.geojson')
+let allCityFeatures = [];
+
+fetch('data/cities.geojson')
   .then(r => r.json())
   .then(data => {
-    document.getElementById('cities-total').textContent = data.features.length;
+    allCityFeatures = data.features;
+    document.getElementById('cities-total-count').textContent = allCityFeatures.length;
 
-    cityLayer = L.geoJSON(data, {
-      pointToLayer: (feature, latlng) => makeCityMarker(feature, latlng)
-    }).addTo(map);
+    allCityFeatures.forEach(feature => {
+      const [lon, lat] = feature.geometry.coordinates;
+      const marker = L.marker([lat, lon], { icon: cityIcon(feature.properties.id) });
+      marker.on('click', () => toggleCity(feature.properties.id));
+      marker.bindTooltip(feature.properties.name, { direction: 'top', offset: [0, -14] });
+      marker.__cityId = feature.properties.id;
+      citiesLayerGroup.addLayer(marker);
+    });
 
     renderCitiesList();
   })
   .catch(err => {
     console.error('Failed to load city data', err);
-    document.getElementById('cities-list').innerHTML =
-      '<li class="empty">Could not load city data.</li>';
+    document.getElementById('cities-list').innerHTML = '<li class="empty">Could not load city data.</li>';
   });
 
-function makeCityMarker(feature, latlng) {
-  const id = feature.properties.id;
-  const marker = L.marker(latlng, { icon: iconForCity(id) });
-  marker.on('click', () => onCityClick(feature, marker));
-  marker.bindTooltip(feature.properties.name, { direction: 'top', offset: [0, -14] });
-  return marker;
-}
-
-function iconForCity(id) {
+function cityIcon(id) {
   const visited = !!visitedCities[id];
   return L.divIcon({
     className: '',
@@ -240,90 +124,201 @@ function iconForCity(id) {
   });
 }
 
-function onCityClick(feature, marker) {
-  const id = feature.properties.id;
-  if (visitedCities[id]) {
-    delete visitedCities[id];
-  } else {
-    visitedCities[id] = { name: feature.properties.name };
-  }
+function toggleCity(id) {
+  if (visitedCities[id]) delete visitedCities[id]; else visitedCities[id] = true;
   saveCities();
-  marker.setIcon(iconForCity(id));
+  citiesLayerGroup.eachLayer(marker => {
+    if (marker.__cityId === id) marker.setIcon(cityIcon(id));
+  });
   renderCitiesList();
 }
 
-function renderCitiesList() {
+function renderCitiesList(filterText) {
   const list = document.getElementById('cities-list');
-  const ids = Object.keys(visitedCities);
-  document.getElementById('cities-visited').textContent = ids.length;
-  if (ids.length === 0) {
-    list.innerHTML = '<li class="empty">No cities marked yet. Click a pin on the map to mark it visited.</li>';
+  const filter = (filterText || '').trim().toLowerCase();
+  const visitedCount = Object.keys(visitedCities).length;
+  document.getElementById('cities-visited-count').textContent = visitedCount;
+  const total = allCityFeatures.length || 1;
+  document.getElementById('cities-progress-fill').style.width = `${(visitedCount / total) * 100}%`;
+
+  const rows = allCityFeatures
+    .filter(f => !filter || f.properties.name.toLowerCase().includes(filter))
+    .sort((a, b) => a.properties.name.localeCompare(b.properties.name, 'bg'));
+
+  if (rows.length === 0) {
+    list.innerHTML = '<li class="empty">No cities match your search.</li>';
     return;
   }
-  list.innerHTML = ids.map(id => {
-    const c = visitedCities[id];
-    return `<li>
-      <div class="item-main">
-        <span class="item-title">${escapeHTML(c.name)}</span>
-        <button class="remove-btn" data-type="city" data-id="${id}" title="Remove">&times;</button>
-      </div>
+
+  list.innerHTML = rows.map(f => {
+    const id = f.properties.id;
+    const visited = !!visitedCities[id];
+    return `<li class="${visited ? 'visited' : ''}" data-city-id="${id}">
+      <input type="checkbox" ${visited ? 'checked' : ''} data-city-id="${id}" />
+      <span class="item-name">${escapeHTML(f.properties.name)}</span>
+      <span class="item-province">${escapeHTML(f.properties.province)}</span>
     </li>`;
   }).join('');
 }
 
-/* ---------------- Remove buttons (event delegation) ---------------- */
+document.getElementById('cities-list').addEventListener('change', (e) => {
+  const id = e.target.dataset.cityId;
+  if (id) toggleCity(id);
+});
+document.getElementById('cities-search').addEventListener('input', (e) => renderCitiesList(e.target.value));
 
-document.getElementById('sidebar').addEventListener('click', (e) => {
-  const btn = e.target.closest('.remove-btn');
-  if (!btn) return;
-  const { type, id } = btn.dataset;
-  if (type === 'road') {
-    delete travelledRoads[id];
-    saveRoads();
-    refreshRoadStyle(id);
-    renderRoadsList();
-  } else if (type === 'city') {
-    delete visitedCities[id];
-    saveCities();
-    if (cityLayer) {
-      cityLayer.eachLayer(layer => {
-        if (String(layer.feature.properties.id) === String(id)) {
-          layer.setIcon(iconForCity(id));
-        }
+/* ---------------- 100 Sites ---------------- */
+
+let allSiteFeatures = [];
+let siteGroupsOrder = [];
+
+const STAR_PATH = 'M9 1.5l2.35 4.76 5.25.76-3.8 3.7.9 5.24L9 13.5l-4.7 2.46.9-5.24-3.8-3.7 5.25-.76z';
+
+function siteIconSvg(visited) {
+  const fill = visited ? '#C9A54A' : 'rgba(241,238,227,0.55)';
+  const stroke = visited ? '#7A5F1E' : '#33422F';
+  return `<svg class="site-star" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+    <path d="${STAR_PATH}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>
+  </svg>`;
+}
+
+function siteIcon(visited) {
+  return L.divIcon({
+    className: '',
+    html: siteIconSvg(visited),
+    iconSize: [18, 18],
+    iconAnchor: [9, 9]
+  });
+}
+
+fetch('data/tourist-sites.json')
+  .then(r => r.json())
+  .then(data => {
+    allSiteFeatures = data.features;
+
+    allSiteFeatures.forEach(feature => {
+      const [lon, lat] = feature.geometry.coordinates;
+      const id = feature.properties.id;
+      const marker = L.marker([lat, lon], { icon: siteIcon(!!visitedSites[id]) });
+      marker.__siteId = id;
+      marker.bindPopup(popupHtml(feature.properties));
+      marker.on('popupopen', (e) => {
+        const btn = e.popup.getElement().querySelector('.popup-toggle');
+        if (btn) btn.addEventListener('click', () => {
+          toggleSite(id);
+          marker.setPopupContent(popupHtml(feature.properties));
+        });
       });
-    }
-    renderCitiesList();
-  }
+      sitesLayerGroup.addLayer(marker);
+    });
+
+    // Preserve first-seen order of official numbers, sorted numerically.
+    const seen = new Set();
+    allSiteFeatures.forEach(f => seen.add(f.properties.group));
+    siteGroupsOrder = Array.from(seen).sort((a, b) => Number(a) - Number(b));
+
+    renderSitesList();
+    updateSitesProgress();
+  })
+  .catch(err => {
+    console.error('Failed to load tourist site data', err);
+    document.getElementById('sites-list').innerHTML = '<li class="empty">Could not load site data.</li>';
+  });
+
+function popupHtml(props) {
+  const visited = !!visitedSites[props.id];
+  return `<div class="site-popup">
+    <strong>#${escapeHTML(props.number)} · ${escapeHTML(props.location)}</strong>
+    <div>${escapeHTML(props.name)}</div>
+    <a href="${props.url}" target="_blank" rel="noopener">More info ↗</a><br/>
+    <button class="popup-toggle">${visited ? 'Mark as not visited' : 'Mark as visited'}</button>
+  </div>`;
+}
+
+function toggleSite(id) {
+  if (visitedSites[id]) delete visitedSites[id]; else visitedSites[id] = true;
+  saveSites();
+  sitesLayerGroup.eachLayer(marker => {
+    if (marker.__siteId === id) marker.setIcon(siteIcon(!!visitedSites[id]));
+  });
+  renderSitesList(document.getElementById('sites-search').value);
+  updateSitesProgress();
+}
+
+function pointsVisitedCount() {
+  const groupsWithVisit = new Set();
+  allSiteFeatures.forEach(f => {
+    if (visitedSites[f.properties.id]) groupsWithVisit.add(f.properties.group);
+  });
+  return groupsWithVisit.size;
+}
+
+function updateSitesProgress() {
+  const count = pointsVisitedCount();
+  document.getElementById('sites-points-visited').textContent = count;
+  document.getElementById('sites-progress-fill').style.width = `${count}%`;
+
+  [['badge-bronze', 25], ['badge-silver', 50], ['badge-gold', 100]].forEach(([id, threshold]) => {
+    document.getElementById(id).classList.toggle('earned', count >= threshold);
+  });
+}
+
+function renderSitesList(filterText) {
+  const list = document.getElementById('sites-list');
+  const filter = (filterText || '').trim().toLowerCase();
+
+  const groupsWithVisit = new Set();
+  allSiteFeatures.forEach(f => { if (visitedSites[f.properties.id]) groupsWithVisit.add(f.properties.group); });
+
+  const html = siteGroupsOrder.map(group => {
+    const attractions = allSiteFeatures.filter(f => f.properties.group === group);
+    const matches = !filter || attractions.some(a =>
+      a.properties.name.toLowerCase().includes(filter) || a.properties.location.toLowerCase().includes(filter)
+    );
+    if (!matches) return '';
+
+    const visitedCount = attractions.filter(a => visitedSites[a.properties.id]).length;
+    const complete = visitedCount === attractions.length;
+    const location = attractions[0].properties.location;
+    const openAttr = filter ? 'open' : '';
+
+    const rows = attractions.map(a => {
+      const id = a.properties.id;
+      const visited = !!visitedSites[id];
+      return `<div class="attraction-row">
+        <input type="checkbox" ${visited ? 'checked' : ''} data-site-id="${id}" id="site-${id}" />
+        <label for="site-${id}">${escapeHTML(a.properties.name)}</label>
+        <a href="${a.properties.url}" target="_blank" rel="noopener">info ↗</a>
+      </div>`;
+    }).join('');
+
+    return `<li class="site-group ${complete ? 'complete' : ''} ${openAttr}" data-group="${group}">
+      <div class="site-group-header">
+        <div class="site-group-number">${escapeHTML(group)}</div>
+        <div class="site-group-title">
+          <div class="site-group-name">${escapeHTML(location)}</div>
+          <div class="site-group-location">${attractions.length} attraction${attractions.length > 1 ? 's' : ''}</div>
+        </div>
+        <div class="site-group-count">${visitedCount}/${attractions.length}</div>
+        <div class="site-group-chevron">▶</div>
+      </div>
+      <div class="site-attractions">${rows}</div>
+    </li>`;
+  }).join('');
+
+  list.innerHTML = html || '<li class="empty">No sites match your search.</li>';
+}
+
+document.getElementById('sites-list').addEventListener('click', (e) => {
+  if (e.target.closest('.attraction-row')) return; // let checkbox/link handle themselves
+  const header = e.target.closest('.site-group-header');
+  if (!header) return;
+  header.closest('.site-group').classList.toggle('open');
 });
 
-/* ---------------- Data freshness / manual refresh ---------------- */
-
-fetch('/api/status').then(r => r.json()).then(s => {
-  const el = document.getElementById('last-updated');
-  if (s.updatedAt) {
-    const d = new Date(s.updatedAt);
-    el.textContent = `Map data updated ${d.toLocaleDateString()}`;
-  } else {
-    el.textContent = 'Map data not yet loaded';
-  }
+document.getElementById('sites-list').addEventListener('change', (e) => {
+  const id = e.target.dataset.siteId;
+  if (id) toggleSite(id);
 });
 
-document.getElementById('refresh-btn').addEventListener('click', async () => {
-  const btn = document.getElementById('refresh-btn');
-  btn.disabled = true;
-  btn.textContent = 'Refreshing…';
-  try {
-    const res = await fetch('/api/refresh', { method: 'POST' });
-    const json = await res.json();
-    if (json.ok) {
-      location.reload();
-    } else {
-      alert('Refresh failed: ' + json.error);
-    }
-  } catch (e) {
-    alert('Refresh failed: ' + e.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Refresh map data';
-  }
-});
+document.getElementById('sites-search').addEventListener('input', (e) => renderSitesList(e.target.value));
