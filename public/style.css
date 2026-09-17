@@ -208,20 +208,29 @@ body {
 
 .attraction-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
-  padding: 5px 0;
+  padding: 6px 8px;
+  margin: 0 -8px;
+  border-radius: 5px;
   font-size: 12.5px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
 }
-.attraction-row input { margin-top: 3px; accent-color: var(--color-gold); cursor: pointer; }
-.attraction-row label { flex: 1; cursor: pointer; }
+.attraction-row:hover { background: rgba(255,255,255,0.06); }
+.attraction-row.visited { background: rgba(111, 207, 151, 0.16); }
+.attraction-row.visited:hover { background: rgba(111, 207, 151, 0.22); }
+.attraction-row .attraction-name { flex: 1; }
 .attraction-row a {
   color: var(--color-text-muted);
   text-decoration: none;
   font-size: 11px;
   white-space: nowrap;
+  flex: none;
 }
 .attraction-row a:hover { color: var(--color-accent); }
+.attraction-row .item-check { width: 14px; height: 14px; }
 
 /* --- Cities list --- */
 .item-list li {
@@ -242,15 +251,41 @@ body {
 .item-list li.visited:hover { background: rgba(111, 207, 151, 0.22); }
 .item-list .item-name { flex: 1; }
 .item-list .item-province { color: var(--color-text-muted); font-size: 11px; }
-.item-list .item-check {
+.item-list .item-check, .attraction-row .item-check {
   flex: none;
-  width: 16px;
-  height: 16px;
   opacity: 0;
   transform: scale(0.6);
   transition: opacity 0.15s ease, transform 0.15s ease;
 }
-.item-list li.visited .item-check { opacity: 1; transform: scale(1); }
+.item-list .item-check { width: 16px; height: 16px; }
+.item-list li.visited .item-check, .attraction-row.visited .item-check { opacity: 1; transform: scale(1); }
+
+/* --- Empty / null states (no search results) --- */
+.empty-state {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 34px 16px;
+  color: var(--color-text-muted);
+}
+.empty-state-icon { font-size: 22px; opacity: 0.7; margin-bottom: 4px; }
+.empty-state-title { font-family: var(--font-display); font-size: 14.5px; color: var(--color-text); font-weight: 600; }
+.empty-state-sub { font-size: 12.5px; line-height: 1.5; max-width: 240px; }
+.empty-state-clear {
+  margin-top: 10px;
+  padding: 7px 14px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.18);
+  background: transparent;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.empty-state-clear:hover { border-color: var(--color-accent); color: var(--color-accent); }
 
 /* --- Map markers --- */
 .city-pin {

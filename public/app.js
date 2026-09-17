@@ -88,6 +88,32 @@ document.getElementById('toggle-sites-layer').addEventListener('change', (e) => 
   if (e.target.checked) map.addLayer(sitesLayerGroup); else map.removeLayer(sitesLayerGroup);
 });
 
+function checkIconSvg() {
+  return `<svg class="item-check" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="8" cy="8" r="8" fill="#6FCF97"/>
+    <path d="M4.5 8.3l2.2 2.2 4.8-4.8" stroke="#0F1A12" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+function emptyStateHtml(searchTargetId, itemLabel) {
+  return `<li class="empty-state">
+    <div class="empty-state-icon">🔎</div>
+    <div class="empty-state-title">No ${itemLabel} found</div>
+    <div class="empty-state-sub">Nothing matches that search. Try a different name or town.</div>
+    <button class="empty-state-clear" data-clear-target="${searchTargetId}">Clear search</button>
+  </li>`;
+}
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.empty-state-clear');
+  if (!btn) return;
+  const input = document.getElementById(btn.dataset.clearTarget);
+  if (!input) return;
+  input.value = '';
+  input.dispatchEvent(new Event('input'));
+  input.focus();
+});
+
 /* ---------------- Cities ---------------- */
 
 let allCityFeatures = [];
@@ -146,7 +172,7 @@ function renderCitiesList(filterText) {
     .sort((a, b) => a.properties.name.localeCompare(b.properties.name, 'bg'));
 
   if (rows.length === 0) {
-    list.innerHTML = '<li class="empty">No cities match your search.</li>';
+    list.innerHTML = filter ? emptyStateHtml('cities-search', 'cities') : '<li class="empty">No cities loaded.</li>';
     return;
   }
 
@@ -156,10 +182,7 @@ function renderCitiesList(filterText) {
     return `<li class="${visited ? 'visited' : ''}" data-city-id="${id}">
       <span class="item-name">${escapeHTML(f.properties.name)}</span>
       <span class="item-province">${escapeHTML(f.properties.province)}</span>
-      <svg class="item-check" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="8" cy="8" r="8" fill="#6FCF97"/>
-        <path d="M4.5 8.3l2.2 2.2 4.8-4.8" stroke="#0F1A12" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
+      ${checkIconSvg()}
     </li>`;
   }).join('');
 }
@@ -175,6 +198,7 @@ document.getElementById('cities-search').addEventListener('input', (e) => render
 
 let allSiteFeatures = [];
 let siteGroupsOrder = [];
+let manuallyOpenGroups = new Set();
 
 const STAR_PATH = 'M9 1.5l2.35 4.76 5.25.76-3.8 3.7.9 5.24L9 13.5l-4.7 2.46.9-5.24-3.8-3.7 5.25-.76z';
 
@@ -284,15 +308,15 @@ function renderSitesList(filterText) {
     const visitedCount = attractions.filter(a => visitedSites[a.properties.id]).length;
     const complete = visitedCount === attractions.length;
     const location = attractions[0].properties.location;
-    const openAttr = filter ? 'open' : '';
+    const openAttr = (filter || manuallyOpenGroups.has(group)) ? 'open' : '';
 
     const rows = attractions.map(a => {
       const id = a.properties.id;
       const visited = !!visitedSites[id];
-      return `<div class="attraction-row">
-        <input type="checkbox" ${visited ? 'checked' : ''} data-site-id="${id}" id="site-${id}" />
-        <label for="site-${id}">${escapeHTML(a.properties.name)}</label>
+      return `<div class="attraction-row ${visited ? 'visited' : ''}" data-site-id="${id}">
+        <span class="attraction-name">${escapeHTML(a.properties.name)}</span>
         <a href="${a.properties.url}" target="_blank" rel="noopener">info ↗</a>
+        ${checkIconSvg()}
       </div>`;
     }).join('');
 
@@ -310,19 +334,25 @@ function renderSitesList(filterText) {
     </li>`;
   }).join('');
 
-  list.innerHTML = html || '<li class="empty">No sites match your search.</li>';
+  list.innerHTML = html || (filter ? emptyStateHtml('sites-search', 'sites') : '<li class="empty">No sites loaded.</li>');
 }
 
 document.getElementById('sites-list').addEventListener('click', (e) => {
-  if (e.target.closest('.attraction-row')) return; // let checkbox/link handle themselves
-  const header = e.target.closest('.site-group-header');
-  if (!header) return;
-  header.closest('.site-group').classList.toggle('open');
-});
+  if (e.target.closest('a')) return; // let the "info" link open normally
 
-document.getElementById('sites-list').addEventListener('change', (e) => {
-  const id = e.target.dataset.siteId;
-  if (id) toggleSite(id);
+  const attractionRow = e.target.closest('.attraction-row');
+  if (attractionRow) {
+    toggleSite(attractionRow.dataset.siteId);
+    return;
+  }
+
+  const header = e.target.closest('.site-group-header');
+  if (header) {
+    const groupEl = header.closest('.site-group');
+    const isOpen = groupEl.classList.toggle('open');
+    if (isOpen) manuallyOpenGroups.add(groupEl.dataset.group);
+    else manuallyOpenGroups.delete(groupEl.dataset.group);
+  }
 });
 
 document.getElementById('sites-search').addEventListener('input', (e) => renderSitesList(e.target.value));
