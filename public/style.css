@@ -7,6 +7,7 @@
   --color-accent: #D46A85;
   --color-accent-hover: #C1567A;
   --color-gold: #C9A54A;
+  --color-success: #6FCF97;
   --color-silver: #C7CDD6;
   --color-bronze: #B8804F;
   --color-untravelled: #8B9A8E;
@@ -232,11 +233,24 @@ body {
   justify-content: space-between;
   gap: 8px;
   font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
 }
-.item-list li.visited { background: rgba(201, 165, 74, 0.14); }
+.item-list li:hover { background: rgba(255,255,255,0.09); }
+.item-list li.visited { background: rgba(111, 207, 151, 0.16); }
+.item-list li.visited:hover { background: rgba(111, 207, 151, 0.22); }
 .item-list .item-name { flex: 1; }
 .item-list .item-province { color: var(--color-text-muted); font-size: 11px; }
-.item-list input { accent-color: var(--color-gold); cursor: pointer; }
+.item-list .item-check {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.item-list li.visited .item-check { opacity: 1; transform: scale(1); }
 
 /* --- Map markers --- */
 .city-pin {

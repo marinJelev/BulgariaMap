@@ -154,16 +154,20 @@ function renderCitiesList(filterText) {
     const id = f.properties.id;
     const visited = !!visitedCities[id];
     return `<li class="${visited ? 'visited' : ''}" data-city-id="${id}">
-      <input type="checkbox" ${visited ? 'checked' : ''} data-city-id="${id}" />
       <span class="item-name">${escapeHTML(f.properties.name)}</span>
       <span class="item-province">${escapeHTML(f.properties.province)}</span>
+      <svg class="item-check" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="8" cy="8" r="8" fill="#6FCF97"/>
+        <path d="M4.5 8.3l2.2 2.2 4.8-4.8" stroke="#0F1A12" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
     </li>`;
   }).join('');
 }
 
-document.getElementById('cities-list').addEventListener('change', (e) => {
-  const id = e.target.dataset.cityId;
-  if (id) toggleCity(id);
+document.getElementById('cities-list').addEventListener('click', (e) => {
+  const row = e.target.closest('li[data-city-id]');
+  if (!row) return;
+  toggleCity(row.dataset.cityId);
 });
 document.getElementById('cities-search').addEventListener('input', (e) => renderCitiesList(e.target.value));
 
