@@ -223,6 +223,7 @@ fetch('data/tourist-sites.json')
   .then(r => r.json())
   .then(data => {
     allSiteFeatures = data.features;
+    document.getElementById('sites-attractions-total').textContent = allSiteFeatures.length;
 
     allSiteFeatures.forEach(feature => {
       const [lon, lat] = feature.geometry.coordinates;
@@ -285,6 +286,9 @@ function updateSitesProgress() {
   const count = pointsVisitedCount();
   document.getElementById('sites-points-visited').textContent = count;
   document.getElementById('sites-progress-fill').style.width = `${count}%`;
+
+  const attractionsVisited = allSiteFeatures.filter(f => visitedSites[f.properties.id]).length;
+  document.getElementById('sites-attractions-visited').textContent = attractionsVisited;
 
   [['badge-bronze', 25], ['badge-silver', 50], ['badge-gold', 100]].forEach(([id, threshold]) => {
     document.getElementById(id).classList.toggle('earned', count >= threshold);

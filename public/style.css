@@ -39,7 +39,7 @@ body {
 }
 .brand { display: flex; align-items: baseline; gap: 10px; }
 .brand-mark { font-family: var(--font-display); font-size: 22px; font-weight: 600; letter-spacing: 0.02em; }
-.brand-sub { font-size: 13px; color: var(--color-text-muted); }
+.brand-sub { font-size: 13px; font-style: italic; color: var(--color-text-muted); }
 .topbar-right { display: flex; align-items: center; gap: 18px; }
 .layer-toggle {
   display: flex; align-items: center; gap: 6px;
@@ -96,6 +96,7 @@ body {
 .progress-block { flex: none; margin-bottom: 12px; }
 .progress-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .progress-count { font-family: var(--font-display); font-size: 16px; font-weight: 600; }
+.progress-subcount { font-family: var(--font-body); font-size: 12px; font-weight: 400; color: var(--color-text-muted); }
 .progress-bar {
   height: 6px;
   border-radius: 4px;
