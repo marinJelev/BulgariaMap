@@ -81,12 +81,16 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
 /* ---------------- Layer toggles ---------------- */
 
-document.getElementById('toggle-cities-layer').addEventListener('change', (e) => {
-  if (e.target.checked) map.addLayer(citiesLayerGroup); else map.removeLayer(citiesLayerGroup);
-});
-document.getElementById('toggle-sites-layer').addEventListener('change', (e) => {
-  if (e.target.checked) map.addLayer(sitesLayerGroup); else map.removeLayer(sitesLayerGroup);
-});
+function setupLayerChip(buttonId, layerGroup) {
+  const btn = document.getElementById(buttonId);
+  btn.addEventListener('click', () => {
+    const isActive = btn.classList.toggle('active');
+    btn.setAttribute('aria-pressed', String(isActive));
+    if (isActive) map.addLayer(layerGroup); else map.removeLayer(layerGroup);
+  });
+}
+setupLayerChip('toggle-cities-layer', citiesLayerGroup);
+setupLayerChip('toggle-sites-layer', sitesLayerGroup);
 
 function checkIconSvg() {
   return `<svg class="item-check" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
