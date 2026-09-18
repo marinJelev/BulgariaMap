@@ -25,10 +25,9 @@ function escapeHTML(str) {
 
 /* ---------------- Map setup ---------------- */
 
-const map = L.map('map', { preferCanvas: true, maxBoundsViscosity: 1.0 }).setView([42.75, 25.3], 7);
+const map = L.map('map', { preferCanvas: true, maxBoundsViscosity: 1.0, attributionControl: false }).setView([42.75, 25.3], 7);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap contributors',
   maxZoom: 19
 }).addTo(map);
 
