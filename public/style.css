@@ -172,6 +172,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 .group-list li.empty, .item-list li.empty {
   color: var(--color-text-muted);

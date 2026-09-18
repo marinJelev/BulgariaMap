@@ -176,6 +176,7 @@ function renderCitiesList(filterText) {
 
   if (rows.length === 0) {
     list.innerHTML = filter ? emptyStateHtml('cities-search', 'cities') : '<li class="empty">No cities loaded.</li>';
+    void list.offsetHeight;
     return;
   }
 
@@ -188,6 +189,7 @@ function renderCitiesList(filterText) {
       ${checkIconSvg()}
     </li>`;
   }).join('');
+  void list.offsetHeight;
 }
 
 document.getElementById('cities-list').addEventListener('click', (e) => {
@@ -345,6 +347,7 @@ function renderSitesList(filterText) {
   }).join('');
 
   list.innerHTML = html || (filter ? emptyStateHtml('sites-search', 'sites') : '<li class="empty">No sites loaded.</li>');
+  void list.offsetHeight;
 }
 
 document.getElementById('sites-list').addEventListener('click', (e) => {
