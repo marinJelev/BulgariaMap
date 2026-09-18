@@ -159,7 +159,7 @@ function toggleCity(id) {
   citiesLayerGroup.eachLayer(marker => {
     if (marker.__cityId === id) marker.setIcon(cityIcon(id));
   });
-  renderCitiesList();
+  renderCitiesList(document.getElementById('cities-search').value);
 }
 
 function renderCitiesList(filterText) {
@@ -195,7 +195,10 @@ document.getElementById('cities-list').addEventListener('click', (e) => {
   if (!row) return;
   toggleCity(row.dataset.cityId);
 });
-document.getElementById('cities-search').addEventListener('input', (e) => renderCitiesList(e.target.value));
+document.getElementById('cities-search').addEventListener('input', (e) => {
+  document.getElementById('cities-list').scrollTop = 0;
+  renderCitiesList(e.target.value);
+});
 
 /* ---------------- 100 Sites ---------------- */
 
@@ -362,4 +365,7 @@ document.getElementById('sites-list').addEventListener('click', (e) => {
   }
 });
 
-document.getElementById('sites-search').addEventListener('input', (e) => renderSitesList(e.target.value));
+document.getElementById('sites-search').addEventListener('input', (e) => {
+  document.getElementById('sites-list').scrollTop = 0;
+  renderSitesList(e.target.value);
+});
