@@ -91,6 +91,17 @@ function setupLayerChip(buttonId, layerGroup) {
 setupLayerChip('toggle-cities-layer', citiesLayerGroup);
 setupLayerChip('toggle-sites-layer', sitesLayerGroup);
 
+// Android Chrome occasionally leaves newly-inserted list content unpainted
+// after a large synchronous innerHTML swap inside a scrolling container.
+// Toggling display forces the browser to fully discard and re-rasterize
+// the subtree, which a plain layout read (offsetHeight) doesn't guarantee.
+function forceRepaint(el) {
+  const prevDisplay = el.style.display;
+  el.style.display = 'none';
+  void el.offsetHeight;
+  el.style.display = prevDisplay;
+}
+
 function checkIconSvg() {
   return `<svg class="item-check" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
     <circle cx="8" cy="8" r="8" fill="#6FCF97"/>
@@ -176,7 +187,7 @@ function renderCitiesList(filterText) {
 
   if (rows.length === 0) {
     list.innerHTML = filter ? emptyStateHtml('cities-search', 'cities') : '<li class="empty">No cities loaded.</li>';
-    void list.offsetHeight;
+    forceRepaint(list);
     return;
   }
 
@@ -189,7 +200,7 @@ function renderCitiesList(filterText) {
       ${checkIconSvg()}
     </li>`;
   }).join('');
-  void list.offsetHeight;
+  forceRepaint(list);
 }
 
 document.getElementById('cities-list').addEventListener('click', (e) => {
@@ -319,7 +330,8 @@ function renderSitesList(filterText) {
 
     const visitedCount = attractions.filter(a => visitedSites[a.properties.id]).length;
     const complete = visitedCount === attractions.length;
-    const location = attractions[0].properties.location;
+    const distinctLocations = [...new Set(attractions.map(a => a.properties.location))];
+    const location = distinctLocations.join(', ');
     const openAttr = (filter || manuallyOpenGroups.has(group)) ? 'open' : '';
 
     const rows = attractions.map(a => {
@@ -347,7 +359,7 @@ function renderSitesList(filterText) {
   }).join('');
 
   list.innerHTML = html || (filter ? emptyStateHtml('sites-search', 'sites') : '<li class="empty">No sites loaded.</li>');
-  void list.offsetHeight;
+  forceRepaint(list);
 }
 
 document.getElementById('sites-list').addEventListener('click', (e) => {
