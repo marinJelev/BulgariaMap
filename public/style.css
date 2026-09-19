@@ -223,6 +223,9 @@ body {
   flex-direction: column;
   gap: 2px;
   padding: 0 12px 10px 50px;
+  max-height: 220px;
+  overflow-y: auto;
+  touch-action: pan-y;
 }
 .site-group.open .site-attractions { display: flex; }
 
