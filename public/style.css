@@ -109,8 +109,19 @@ body {
   flex: 1;
   padding: 16px 18px;
   overflow: hidden;
+  position: relative;
 }
 .tab-panel.active { display: flex; }
+.tab-panel::after {
+  content: '';
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 0;
+  height: 24px;
+  background: linear-gradient(to bottom, transparent, var(--color-bg-elevated));
+  pointer-events: none;
+}
 
 .progress-block { flex: none; margin-bottom: 12px; }
 .progress-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
@@ -174,6 +185,17 @@ body {
   flex-direction: column;
   gap: 6px;
   touch-action: pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.28) transparent;
+}
+.group-list::-webkit-scrollbar, .item-list::-webkit-scrollbar { width: 8px; }
+.group-list::-webkit-scrollbar-track, .item-list::-webkit-scrollbar-track { background: transparent; }
+.group-list::-webkit-scrollbar-thumb, .item-list::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.28);
+  border-radius: 4px;
+}
+.group-list::-webkit-scrollbar-thumb:hover, .item-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.42);
 }
 .group-list li.empty, .item-list li.empty {
   color: var(--color-text-muted);
@@ -227,7 +249,13 @@ body {
   max-height: 220px;
   overflow-y: auto;
   touch-action: pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.28) transparent;
 }
+.site-attractions::-webkit-scrollbar { width: 8px; }
+.site-attractions::-webkit-scrollbar-track { background: transparent; }
+.site-attractions::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.28); border-radius: 4px; }
+.site-attractions::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.42); }
 .site-group.open .site-attractions { display: flex; }
 
 .attraction-row {
