@@ -102,6 +102,36 @@ function forceRepaint(el) {
   el.style.display = prevDisplay;
 }
 
+// Wraps every case-insensitive occurrence of `filter` inside `text` in a
+// <mark> element and returns a DocumentFragment. Building highlighted text
+// via real DOM nodes (not string concatenation) keeps it XSS-safe without
+// needing escapeHTML, since textContent never gets interpreted as markup.
+function buildHighlightedText(text, filter) {
+  const frag = document.createDocumentFragment();
+  if (!filter) {
+    frag.appendChild(document.createTextNode(text));
+    return frag;
+  }
+  const lowerText = text.toLowerCase();
+  let pos = 0;
+  let idx = lowerText.indexOf(filter);
+  if (idx === -1) {
+    frag.appendChild(document.createTextNode(text));
+    return frag;
+  }
+  while (idx !== -1) {
+    if (idx > pos) frag.appendChild(document.createTextNode(text.slice(pos, idx)));
+    const mark = document.createElement('mark');
+    mark.className = 'search-highlight';
+    mark.textContent = text.slice(idx, idx + filter.length);
+    frag.appendChild(mark);
+    pos = idx + filter.length;
+    idx = lowerText.indexOf(filter, pos);
+  }
+  if (pos < text.length) frag.appendChild(document.createTextNode(text.slice(pos)));
+  return frag;
+}
+
 function checkIconSvg() {
   return `<svg class="item-check" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
     <circle cx="8" cy="8" r="8" fill="#6FCF97"/>
@@ -191,15 +221,31 @@ function renderCitiesList(filterText) {
     return;
   }
 
-  list.innerHTML = rows.map(f => {
+  const fragment = document.createDocumentFragment();
+  rows.forEach(f => {
     const id = f.properties.id;
     const visited = !!visitedCities[id];
-    return `<li class="${visited ? 'visited' : ''}" data-city-id="${id}">
-      <span class="item-name">${escapeHTML(f.properties.name)}</span>
-      <span class="item-province">${escapeHTML(f.properties.province)}</span>
-      ${checkIconSvg()}
-    </li>`;
-  }).join('');
+
+    const li = document.createElement('li');
+    li.className = visited ? 'visited' : '';
+    li.dataset.cityId = id;
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'item-name';
+    nameSpan.appendChild(buildHighlightedText(f.properties.name, filter));
+
+    const provinceSpan = document.createElement('span');
+    provinceSpan.className = 'item-province';
+    provinceSpan.textContent = f.properties.province;
+
+    li.appendChild(nameSpan);
+    li.appendChild(provinceSpan);
+    li.insertAdjacentHTML('beforeend', checkIconSvg());
+
+    fragment.appendChild(li);
+  });
+
+  list.replaceChildren(fragment);
   forceRepaint(list);
 }
 
@@ -321,44 +367,96 @@ function renderSitesList(filterText) {
   const groupsWithVisit = new Set();
   allSiteFeatures.forEach(f => { if (visitedSites[f.properties.id]) groupsWithVisit.add(f.properties.group); });
 
-  const html = siteGroupsOrder.map(group => {
+  const fragment = document.createDocumentFragment();
+  let anyMatch = false;
+
+  siteGroupsOrder.forEach(group => {
     const attractions = allSiteFeatures.filter(f => f.properties.group === group);
     const matches = !filter || attractions.some(a =>
       a.properties.name.toLowerCase().includes(filter) || a.properties.location.toLowerCase().includes(filter)
     );
-    if (!matches) return '';
+    if (!matches) return;
+    anyMatch = true;
 
     const visitedCount = attractions.filter(a => visitedSites[a.properties.id]).length;
     const complete = visitedCount === attractions.length;
     const distinctLocations = [...new Set(attractions.map(a => a.properties.location))];
     const location = distinctLocations.join(', ');
-    const openAttr = (filter || manuallyOpenGroups.has(group)) ? 'open' : '';
+    const isOpen = !!(filter || manuallyOpenGroups.has(group));
 
-    const rows = attractions.map(a => {
+    const li = document.createElement('li');
+    li.className = `site-group${complete ? ' complete' : ''}${isOpen ? ' open' : ''}`;
+    li.dataset.group = group;
+
+    const header = document.createElement('div');
+    header.className = 'site-group-header';
+
+    const numberEl = document.createElement('div');
+    numberEl.className = 'site-group-number';
+    numberEl.textContent = group;
+
+    const titleWrap = document.createElement('div');
+    titleWrap.className = 'site-group-title';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'site-group-name';
+    nameEl.appendChild(buildHighlightedText(location, filter));
+
+    const locEl = document.createElement('div');
+    locEl.className = 'site-group-location';
+    locEl.textContent = `${attractions.length} attraction${attractions.length > 1 ? 's' : ''}`;
+
+    titleWrap.appendChild(nameEl);
+    titleWrap.appendChild(locEl);
+
+    const countEl = document.createElement('div');
+    countEl.className = 'site-group-count';
+    countEl.textContent = `${visitedCount}/${attractions.length}`;
+
+    const chevronEl = document.createElement('div');
+    chevronEl.className = 'site-group-chevron';
+    chevronEl.textContent = '▶';
+
+    header.append(numberEl, titleWrap, countEl, chevronEl);
+
+    const attractionsWrap = document.createElement('div');
+    attractionsWrap.className = 'site-attractions';
+
+    attractions.forEach(a => {
       const id = a.properties.id;
       const visited = !!visitedSites[id];
-      return `<div class="attraction-row ${visited ? 'visited' : ''}" data-site-id="${id}">
-        <span class="attraction-name">${escapeHTML(a.properties.name)}</span>
-        <a href="${a.properties.url}" target="_blank" rel="noopener">info ↗</a>
-        ${checkIconSvg()}
-      </div>`;
-    }).join('');
 
-    return `<li class="site-group ${complete ? 'complete' : ''} ${openAttr}" data-group="${group}">
-      <div class="site-group-header">
-        <div class="site-group-number">${escapeHTML(group)}</div>
-        <div class="site-group-title">
-          <div class="site-group-name">${escapeHTML(location)}</div>
-          <div class="site-group-location">${attractions.length} attraction${attractions.length > 1 ? 's' : ''}</div>
-        </div>
-        <div class="site-group-count">${visitedCount}/${attractions.length}</div>
-        <div class="site-group-chevron">▶</div>
-      </div>
-      <div class="site-attractions">${rows}</div>
-    </li>`;
-  }).join('');
+      const row = document.createElement('div');
+      row.className = `attraction-row${visited ? ' visited' : ''}`;
+      row.dataset.siteId = id;
 
-  list.innerHTML = html || (filter ? emptyStateHtml('sites-search', 'sites') : '<li class="empty">No sites loaded.</li>');
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'attraction-name';
+      nameSpan.appendChild(buildHighlightedText(a.properties.name, filter));
+
+      const link = document.createElement('a');
+      link.href = a.properties.url;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.textContent = 'info ↗';
+
+      row.appendChild(nameSpan);
+      row.appendChild(link);
+      row.insertAdjacentHTML('beforeend', checkIconSvg());
+
+      attractionsWrap.appendChild(row);
+    });
+
+    li.appendChild(header);
+    li.appendChild(attractionsWrap);
+    fragment.appendChild(li);
+  });
+
+  if (!anyMatch) {
+    list.innerHTML = filter ? emptyStateHtml('sites-search', 'sites') : '<li class="empty">No sites loaded.</li>';
+  } else {
+    list.replaceChildren(fragment);
+  }
   forceRepaint(list);
 }
 

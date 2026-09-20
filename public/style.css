@@ -11,6 +11,7 @@
   --color-silver: #C7CDD6;
   --color-bronze: #B8804F;
   --color-untravelled: #8B9A8E;
+  --color-highlight: #F5D949;
   --font-display: 'Fraunces', serif;
   --font-body: 'Inter', system-ui, sans-serif;
   --radius: 6px;
@@ -257,6 +258,13 @@ body {
 .attraction-row .item-check { width: 14px; height: 14px; }
 
 /* --- Cities list --- */
+.search-highlight {
+  background: var(--color-highlight);
+  color: #241019;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
 .item-list li {
   background: rgba(255,255,255,0.05);
   border: 1px solid transparent;
