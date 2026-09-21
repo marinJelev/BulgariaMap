@@ -10,18 +10,208 @@ function loadJSON(key, fallback) {
     return fallback;
   }
 }
-function saveJSON(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+function saveJSON(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    console.warn('Could not save to localStorage (storage may be full or unavailable).', e.message);
+  }
+}
 
 let visitedCities = loadJSON(STORAGE_CITIES_KEY, {});   // { ekatteId: true }
 let visitedSites = loadJSON(STORAGE_SITES_KEY, {});      // { siteId: true }
-function saveCities() { saveJSON(STORAGE_CITIES_KEY, visitedCities); }
-function saveSites() { saveJSON(STORAGE_SITES_KEY, visitedSites); }
+function saveCities() { saveJSON(STORAGE_CITIES_KEY, visitedCities); pushProgressToCloud(); }
+function saveSites() { saveJSON(STORAGE_SITES_KEY, visitedSites); pushProgressToCloud(); }
 
 function escapeHTML(str) {
   return String(str).replace(/[&<>"']/g, s => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[s]));
 }
+
+/* ---------------- Auth & cloud sync ----------------
+   Signing in is optional — the app works exactly as before with
+   localStorage alone. Signing in additionally syncs progress to
+   Supabase so it follows you across devices. On sign-in, cloud and
+   local progress are merged (union of visited ids, never dropped),
+   then the merged result is saved both locally and to the cloud. */
+
+const SUPABASE_URL = 'https://muzdlwajvomtxmknqgnf.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_CeEy7aiawErwDrzaTxPmhQ_l3V-u8DD';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null;
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function friendlyAuthError(err) {
+  const msg = (err && err.message) || '';
+  if (/invalid login credentials/i.test(msg)) return 'Incorrect email or password.';
+  if (/already registered|already exists|user already/i.test(msg)) return 'An account with this email already exists — try signing in instead.';
+  if (/email not confirmed/i.test(msg)) return 'Check your email to confirm your account before signing in.';
+  if (/password.*(at least|should be|character)/i.test(msg)) return 'Password must be at least 6 characters.';
+  if (/rate limit/i.test(msg)) return 'Too many attempts — please wait a moment and try again.';
+  if (/network|fetch/i.test(msg)) return 'Could not reach the server. Check your connection and try again.';
+  return msg || 'Something went wrong. Please try again.';
+}
+
+async function pushProgressToCloud() {
+  if (!currentUser) return;
+  try {
+    const { error } = await supabaseClient.from('user_progress').upsert({
+      user_id: currentUser.id,
+      visited_cities: visitedCities,
+      visited_sites: visitedSites,
+      updated_at: new Date().toISOString()
+    });
+    if (error) console.error('Cloud sync failed', error.message);
+  } catch (e) {
+    console.error('Cloud sync failed', e.message);
+  }
+}
+
+function refreshAllMarkerIcons() {
+  citiesLayerGroup.eachLayer(marker => marker.setIcon(cityIcon(marker.__cityId)));
+  sitesLayerGroup.eachLayer(marker => marker.setIcon(siteIcon(!!visitedSites[marker.__siteId])));
+}
+
+async function pullAndMergeProgress() {
+  if (!currentUser) return;
+  try {
+    const { data, error } = await supabaseClient
+      .from('user_progress')
+      .select('visited_cities, visited_sites')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Failed to load cloud progress', error.message);
+      return;
+    }
+
+    if (data) {
+      visitedCities = { ...(data.visited_cities || {}), ...visitedCities };
+      visitedSites = { ...(data.visited_sites || {}), ...visitedSites };
+    }
+    saveJSON(STORAGE_CITIES_KEY, visitedCities);
+    saveJSON(STORAGE_SITES_KEY, visitedSites);
+    await pushProgressToCloud();
+
+    renderCitiesList(document.getElementById('cities-search').value);
+    renderSitesList(document.getElementById('sites-search').value);
+    updateSitesProgress();
+    refreshAllMarkerIcons();
+  } catch (e) {
+    console.error('Failed to sync progress', e.message);
+  }
+}
+
+function setAuthMode(mode) {
+  document.querySelectorAll('.auth-tab').forEach(tab => {
+    const active = tab.dataset.mode === mode;
+    tab.classList.toggle('active', active);
+    tab.setAttribute('aria-selected', String(active));
+  });
+  document.getElementById('auth-password-confirm').classList.toggle('hidden', mode !== 'signup');
+  document.getElementById('auth-submit').textContent = mode === 'signup' ? 'Create account' : 'Sign in';
+  document.getElementById('auth-form').dataset.mode = mode;
+  setAuthMessage('');
+}
+
+function setAuthMessage(text, type) {
+  const el = document.getElementById('auth-message');
+  el.textContent = text;
+  el.className = 'auth-message' + (type ? ` ${type}` : '');
+}
+
+function showSignedInUI(user) {
+  document.getElementById('auth-panel').classList.add('hidden');
+  document.getElementById('auth-trigger').classList.add('hidden');
+  document.getElementById('auth-account').classList.remove('hidden');
+  document.getElementById('auth-email-display').textContent = user.email;
+}
+
+function showSignedOutUI() {
+  document.getElementById('auth-trigger').classList.remove('hidden');
+  document.getElementById('auth-account').classList.add('hidden');
+}
+
+document.getElementById('auth-trigger').addEventListener('click', () => {
+  const panel = document.getElementById('auth-panel');
+  const isHidden = panel.classList.toggle('hidden');
+  document.getElementById('auth-trigger').setAttribute('aria-expanded', String(!isHidden));
+});
+
+document.addEventListener('click', (e) => {
+  const widget = document.querySelector('.auth-widget');
+  if (!widget.contains(e.target)) document.getElementById('auth-panel').classList.add('hidden');
+});
+
+document.querySelectorAll('.auth-tab').forEach(tab => {
+  tab.addEventListener('click', () => setAuthMode(tab.dataset.mode));
+});
+
+document.getElementById('auth-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const mode = e.target.dataset.mode || 'signin';
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const confirmPassword = document.getElementById('auth-password-confirm').value;
+  const submitBtn = document.getElementById('auth-submit');
+
+  if (!isValidEmail(email)) {
+    setAuthMessage('Enter a valid email address.', 'error');
+    return;
+  }
+  if (password.length < 6) {
+    setAuthMessage('Password must be at least 6 characters.', 'error');
+    return;
+  }
+  if (mode === 'signup' && password !== confirmPassword) {
+    setAuthMessage('Passwords do not match.', 'error');
+    return;
+  }
+
+  submitBtn.disabled = true;
+  setAuthMessage(mode === 'signup' ? 'Creating account…' : 'Signing in…');
+
+  try {
+    if (mode === 'signup') {
+      const { data, error } = await supabaseClient.auth.signUp({ email, password });
+      if (error) throw error;
+      if (data.user && !data.session) {
+        setAuthMode('signin');
+        setAuthMessage('Check your email to confirm your account, then sign in.', 'success');
+      }
+      // If email confirmation is disabled on the project, signUp also returns
+      // a session and onAuthStateChange below handles the signed-in UI.
+    } else {
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    }
+  } catch (err) {
+    setAuthMessage(friendlyAuthError(err), 'error');
+  } finally {
+    submitBtn.disabled = false;
+  }
+});
+
+document.getElementById('auth-signout').addEventListener('click', async () => {
+  await supabaseClient.auth.signOut();
+});
+
+supabaseClient.auth.onAuthStateChange((event, session) => {
+  if (session && session.user) {
+    currentUser = session.user;
+    showSignedInUI(currentUser);
+    if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') pullAndMergeProgress();
+  } else {
+    currentUser = null;
+    showSignedOutUI();
+  }
+});
 
 /* ---------------- Map setup ---------------- */
 
