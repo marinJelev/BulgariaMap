@@ -285,6 +285,45 @@ body {
 .attraction-row a:hover { color: var(--color-accent); }
 .attraction-row .item-check { width: 14px; height: 14px; }
 
+/* --- Flat search results (sites) --- */
+.site-flat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.site-flat-row:hover { background: rgba(255,255,255,0.09); }
+.site-flat-row.visited { background: rgba(111, 207, 151, 0.16); border-color: rgba(111, 207, 151, 0.55); }
+.site-flat-row.visited:hover { background: rgba(111, 207, 151, 0.22); }
+.site-flat-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  flex: none;
+}
+.site-flat-body { flex: 1; min-width: 0; }
+.site-flat-name { font-size: 13.5px; font-weight: 500; }
+.site-flat-location { font-size: 11.5px; color: var(--color-text-muted); margin-top: 1px; }
+.site-flat-info {
+  flex: none;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-size: 11px;
+}
+.site-flat-info:hover { color: var(--color-accent); }
+.site-flat-row .item-check { flex: none; width: 14px; height: 14px; }
+
 /* --- Cities list --- */
 .search-highlight {
   background: var(--color-highlight);
@@ -312,14 +351,14 @@ body {
 .item-list li.visited:hover { background: rgba(111, 207, 151, 0.22); }
 .item-list .item-name { flex: 1; }
 .item-list .item-province { color: var(--color-text-muted); font-size: 11px; }
-.item-list .item-check, .attraction-row .item-check {
+.item-list .item-check, .attraction-row .item-check, .site-flat-row .item-check {
   flex: none;
   opacity: 0;
   transform: scale(0.6);
   transition: opacity 0.15s ease, transform 0.15s ease;
 }
 .item-list .item-check { width: 16px; height: 16px; }
-.item-list li.visited .item-check, .attraction-row.visited .item-check { opacity: 1; transform: scale(1); }
+.item-list li.visited .item-check, .attraction-row.visited .item-check, .site-flat-row.visited .item-check { opacity: 1; transform: scale(1); }
 
 /* --- Empty / null states (no search results) --- */
 .empty-state {

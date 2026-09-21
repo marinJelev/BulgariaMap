@@ -364,25 +364,25 @@ function renderSitesList(filterText) {
   const list = document.getElementById('sites-list');
   const filter = (filterText || '').trim().toLowerCase();
 
-  const groupsWithVisit = new Set();
-  allSiteFeatures.forEach(f => { if (visitedSites[f.properties.id]) groupsWithVisit.add(f.properties.group); });
+  if (!filter) {
+    renderSitesGrouped(list);
+  } else {
+    renderSitesFlat(list, filter);
+  }
+  forceRepaint(list);
+}
 
+function renderSitesGrouped(list) {
   const fragment = document.createDocumentFragment();
-  let anyMatch = false;
 
   siteGroupsOrder.forEach(group => {
     const attractions = allSiteFeatures.filter(f => f.properties.group === group);
-    const matches = !filter || attractions.some(a =>
-      a.properties.name.toLowerCase().includes(filter) || a.properties.location.toLowerCase().includes(filter)
-    );
-    if (!matches) return;
-    anyMatch = true;
 
     const visitedCount = attractions.filter(a => visitedSites[a.properties.id]).length;
     const complete = visitedCount === attractions.length;
     const distinctLocations = [...new Set(attractions.map(a => a.properties.location))];
     const location = distinctLocations.join(', ');
-    const isOpen = !!(filter || manuallyOpenGroups.has(group));
+    const isOpen = manuallyOpenGroups.has(group);
 
     const li = document.createElement('li');
     li.className = `site-group${complete ? ' complete' : ''}${isOpen ? ' open' : ''}`;
@@ -400,7 +400,7 @@ function renderSitesList(filterText) {
 
     const nameEl = document.createElement('div');
     nameEl.className = 'site-group-name';
-    nameEl.appendChild(buildHighlightedText(location, filter));
+    nameEl.textContent = location;
 
     const locEl = document.createElement('div');
     locEl.className = 'site-group-location';
@@ -432,7 +432,7 @@ function renderSitesList(filterText) {
 
       const nameSpan = document.createElement('span');
       nameSpan.className = 'attraction-name';
-      nameSpan.appendChild(buildHighlightedText(a.properties.name, filter));
+      nameSpan.textContent = a.properties.name;
 
       const link = document.createElement('a');
       link.href = a.properties.url;
@@ -452,16 +452,91 @@ function renderSitesList(filterText) {
     fragment.appendChild(li);
   });
 
-  if (!anyMatch) {
-    list.innerHTML = filter ? emptyStateHtml('sites-search', 'sites') : '<li class="empty">No sites loaded.</li>';
-  } else {
-    list.replaceChildren(fragment);
+  list.replaceChildren(fragment);
+}
+
+// Search results are shown as a flat list of individual matching sites
+// rather than nested inside their point-groups: it's immediately clear
+// which sites matched and why, and every result is one click away from
+// being marked visited (no expand step needed).
+function renderSitesFlat(list, filter) {
+  const matches = allSiteFeatures.filter(a =>
+    a.properties.name.toLowerCase().includes(filter) || a.properties.location.toLowerCase().includes(filter)
+  );
+
+  if (matches.length === 0) {
+    list.innerHTML = emptyStateHtml('sites-search', 'sites');
+    return;
   }
-  forceRepaint(list);
+
+  const groupLocations = new Map();
+  allSiteFeatures.forEach(a => {
+    const g = a.properties.group;
+    if (!groupLocations.has(g)) groupLocations.set(g, new Set());
+    groupLocations.get(g).add(a.properties.location);
+  });
+
+  const fragment = document.createDocumentFragment();
+
+  matches.forEach(a => {
+    const id = a.properties.id;
+    const visited = !!visitedSites[id];
+    const group = a.properties.group;
+
+    const li = document.createElement('li');
+    li.className = `site-flat-row${visited ? ' visited' : ''}`;
+    li.dataset.siteId = id;
+
+    const badge = document.createElement('div');
+    badge.className = 'site-flat-badge';
+    badge.textContent = group;
+
+    const body = document.createElement('div');
+    body.className = 'site-flat-body';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'site-flat-name';
+    nameEl.appendChild(buildHighlightedText(a.properties.name, filter));
+
+    const locEl = document.createElement('div');
+    locEl.className = 'site-flat-location';
+    locEl.appendChild(document.createTextNode('in '));
+    locEl.appendChild(buildHighlightedText(a.properties.location, filter));
+
+    const otherLocations = [...groupLocations.get(group)].filter(loc => loc !== a.properties.location);
+    if (otherLocations.length > 0) {
+      locEl.appendChild(document.createTextNode(` · point shared with ${otherLocations.join(', ')}`));
+    }
+
+    body.appendChild(nameEl);
+    body.appendChild(locEl);
+
+    const link = document.createElement('a');
+    link.className = 'site-flat-info';
+    link.href = a.properties.url;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = 'info ↗';
+
+    li.appendChild(badge);
+    li.appendChild(body);
+    li.appendChild(link);
+    li.insertAdjacentHTML('beforeend', checkIconSvg());
+
+    fragment.appendChild(li);
+  });
+
+  list.replaceChildren(fragment);
 }
 
 document.getElementById('sites-list').addEventListener('click', (e) => {
   if (e.target.closest('a')) return; // let the "info" link open normally
+
+  const flatRow = e.target.closest('.site-flat-row');
+  if (flatRow) {
+    toggleSite(flatRow.dataset.siteId);
+    return;
+  }
 
   const attractionRow = e.target.closest('.attraction-row');
   if (attractionRow) {
