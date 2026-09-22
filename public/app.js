@@ -126,27 +126,35 @@ function setAuthMessage(text, type) {
   el.className = 'auth-message' + (type ? ` ${type}` : '');
 }
 
+function initials(email) {
+  return (email || '?').trim().charAt(0).toUpperCase();
+}
+
 function showSignedInUI(user) {
-  document.getElementById('auth-panel').classList.add('hidden');
-  document.getElementById('auth-trigger').classList.add('hidden');
-  document.getElementById('auth-account').classList.remove('hidden');
+  document.getElementById('auth-modal-overlay').classList.add('hidden');
+  document.getElementById('auth-account-panel').classList.add('hidden');
+  const avatar = document.getElementById('auth-avatar');
+  avatar.classList.remove('hidden');
+  avatar.textContent = initials(user.email);
+  avatar.setAttribute('aria-expanded', 'false');
   document.getElementById('auth-email-display').textContent = user.email;
 }
 
 function showSignedOutUI() {
-  document.getElementById('auth-trigger').classList.remove('hidden');
-  document.getElementById('auth-account').classList.add('hidden');
+  document.getElementById('auth-modal-overlay').classList.remove('hidden');
+  document.getElementById('auth-avatar').classList.add('hidden');
+  document.getElementById('auth-account-panel').classList.add('hidden');
 }
 
-document.getElementById('auth-trigger').addEventListener('click', () => {
-  const panel = document.getElementById('auth-panel');
+document.getElementById('auth-avatar').addEventListener('click', () => {
+  const panel = document.getElementById('auth-account-panel');
   const isHidden = panel.classList.toggle('hidden');
-  document.getElementById('auth-trigger').setAttribute('aria-expanded', String(!isHidden));
+  document.getElementById('auth-avatar').setAttribute('aria-expanded', String(!isHidden));
 });
 
 document.addEventListener('click', (e) => {
   const widget = document.querySelector('.auth-widget');
-  if (!widget.contains(e.target)) document.getElementById('auth-panel').classList.add('hidden');
+  if (!widget.contains(e.target)) document.getElementById('auth-account-panel').classList.add('hidden');
 });
 
 document.querySelectorAll('.auth-tab').forEach(tab => {
