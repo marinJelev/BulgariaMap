@@ -51,6 +51,8 @@ function friendlyAuthError(err) {
   if (/invalid login credentials/i.test(msg)) return 'Incorrect email or password.';
   if (/already registered|already exists|user already/i.test(msg)) return 'An account with this email already exists — try signing in instead.';
   if (/email not confirmed/i.test(msg)) return 'Check your email to confirm your account before signing in.';
+  if (/different from the old password/i.test(msg)) return 'New password must be different from your current password.';
+  if (/expired|invalid.*(link|token)/i.test(msg)) return 'This reset link has expired or already been used — request a new one.';
   if (/password.*(at least|should be|character)/i.test(msg)) return 'Password must be at least 6 characters.';
   if (/rate limit/i.test(msg)) return 'Too many attempts — please wait a moment and try again.';
   if (/network|fetch/i.test(msg)) return 'Could not reach the server. Check your connection and try again.';
@@ -109,13 +111,34 @@ async function pullAndMergeProgress() {
 }
 
 function setAuthMode(mode) {
+  const tabsVisible = mode === 'signin' || mode === 'signup';
+  document.querySelector('.auth-tabs').classList.toggle('hidden', !tabsVisible);
   document.querySelectorAll('.auth-tab').forEach(tab => {
     const active = tab.dataset.mode === mode;
     tab.classList.toggle('active', active);
     tab.setAttribute('aria-selected', String(active));
   });
-  document.getElementById('auth-password-confirm').classList.toggle('hidden', mode !== 'signup');
-  document.getElementById('auth-submit').textContent = mode === 'signup' ? 'Create account' : 'Sign in';
+
+  const emailField = document.getElementById('auth-email');
+  const passwordField = document.getElementById('auth-password');
+  const confirmField = document.getElementById('auth-password-confirm');
+
+  emailField.classList.toggle('hidden', mode === 'reset-confirm');
+  passwordField.classList.toggle('hidden', mode === 'reset-request');
+  confirmField.classList.toggle('hidden', !(mode === 'signup' || mode === 'reset-confirm'));
+  document.getElementById('auth-forgot-link').classList.toggle('hidden', mode !== 'signin');
+  document.getElementById('auth-back-link').classList.toggle('hidden', mode !== 'reset-request');
+
+  passwordField.placeholder = mode === 'reset-confirm' ? 'New password' : 'Password';
+  confirmField.placeholder = mode === 'reset-confirm' ? 'Confirm new password' : 'Confirm password';
+
+  const submitLabels = {
+    signin: 'Sign in',
+    signup: 'Create account',
+    'reset-request': 'Send reset link',
+    'reset-confirm': 'Set new password'
+  };
+  document.getElementById('auth-submit').textContent = submitLabels[mode];
   document.getElementById('auth-form').dataset.mode = mode;
   setAuthMessage('');
 }
@@ -144,6 +167,7 @@ function showSignedOutUI() {
   document.getElementById('auth-modal-overlay').classList.remove('hidden');
   document.getElementById('auth-avatar').classList.add('hidden');
   document.getElementById('auth-account-panel').classList.add('hidden');
+  setAuthMode('signin');
 }
 
 document.getElementById('auth-avatar').addEventListener('click', () => {
@@ -168,6 +192,48 @@ document.getElementById('auth-form').addEventListener('submit', async (e) => {
   const password = document.getElementById('auth-password').value;
   const confirmPassword = document.getElementById('auth-password-confirm').value;
   const submitBtn = document.getElementById('auth-submit');
+
+  if (mode === 'reset-request') {
+    if (!isValidEmail(email)) {
+      setAuthMessage('Enter a valid email address.', 'error');
+      return;
+    }
+    submitBtn.disabled = true;
+    setAuthMessage('Sending reset link…');
+    try {
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+      if (error) throw error;
+      setAuthMessage('Check your email for a password reset link.', 'success');
+    } catch (err) {
+      setAuthMessage(friendlyAuthError(err), 'error');
+    } finally {
+      submitBtn.disabled = false;
+    }
+    return;
+  }
+
+  if (mode === 'reset-confirm') {
+    if (password.length < 6) {
+      setAuthMessage('Password must be at least 6 characters.', 'error');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setAuthMessage('Passwords do not match.', 'error');
+      return;
+    }
+    submitBtn.disabled = true;
+    setAuthMessage('Updating password…');
+    try {
+      const { error } = await supabaseClient.auth.updateUser({ password });
+      if (error) throw error;
+      // onAuthStateChange fires USER_UPDATED with an active session, which
+      // closes the modal and signs the user in — no manual UI change needed here.
+    } catch (err) {
+      setAuthMessage(friendlyAuthError(err), 'error');
+      submitBtn.disabled = false;
+    }
+    return;
+  }
 
   if (!isValidEmail(email)) {
     setAuthMessage('Enter a valid email address.', 'error');
@@ -206,15 +272,23 @@ document.getElementById('auth-form').addEventListener('submit', async (e) => {
   }
 });
 
+document.getElementById('auth-forgot-link').addEventListener('click', () => setAuthMode('reset-request'));
+document.getElementById('auth-back-link').addEventListener('click', () => setAuthMode('signin'));
+
 document.getElementById('auth-signout').addEventListener('click', async () => {
   await supabaseClient.auth.signOut();
 });
 
 supabaseClient.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY') {
+    document.getElementById('auth-modal-overlay').classList.remove('hidden');
+    setAuthMode('reset-confirm');
+    return;
+  }
   if (session && session.user) {
     currentUser = session.user;
     showSignedInUI(currentUser);
-    if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') pullAndMergeProgress();
+    if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'USER_UPDATED') pullAndMergeProgress();
   } else {
     currentUser = null;
     showSignedOutUI();
