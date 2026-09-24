@@ -277,6 +277,16 @@ document.getElementById('auth-back-link').addEventListener('click', () => setAut
 
 document.getElementById('auth-signout').addEventListener('click', async () => {
   await supabaseClient.auth.signOut();
+  // Wipe the local cache so a different account signing in next on this
+  // browser can't inherit (and then re-upload) this user's progress.
+  visitedCities = {};
+  visitedSites = {};
+  saveJSON(STORAGE_CITIES_KEY, visitedCities);
+  saveJSON(STORAGE_SITES_KEY, visitedSites);
+  renderCitiesList(document.getElementById('cities-search').value);
+  renderSitesList(document.getElementById('sites-search').value);
+  updateSitesProgress();
+  refreshAllMarkerIcons();
 });
 
 supabaseClient.auth.onAuthStateChange((event, session) => {
