@@ -10,9 +10,11 @@ A Bulgaria-only interactive map with two trackers:
   Reach 25 / 50 / 100 distinct points and you unlock the real Bronze / Silver
   / Gold badge tiers the physical movement uses.
 
-Everything you mark is saved in your **browser's local storage** — nothing
-is sent to a server. This is a fully static site: no backend, no database,
-no scheduled jobs. That makes it a natural fit for Vercel.
+Signing in is required, and your progress is saved to your account via
+Supabase — it follows you across browsers and devices. The map itself is
+still a fully static site (no server-rendered pages, no scheduled jobs),
+which keeps it a natural fit for Vercel; Supabase only handles auth and
+storing your visited-cities/visited-sites state.
 
 ## 1. Deploying on Vercel
 
@@ -37,6 +39,8 @@ cd public && python3 -m http.server 3000
 
 ## 3. Using it
 
+- Signing in (email + password) is required before you can use the app;
+  your progress is tied to your account.
 - The map is locked to Bulgaria — everything outside the border is greyed
   out, and you can't pan/zoom out to neighboring countries.
 - **100 Sites tab**: sites are grouped by their official point number. Click
@@ -58,7 +62,7 @@ bulgaria-map/
 ├── public/                     Everything Vercel deploys, as-is
 │   ├── index.html
 │   ├── style.css
-│   ├── app.js                  Map, tabs, badges, search, localStorage
+│   ├── app.js                  Map, tabs, badges, search, auth, sync
 │   └── data/
 │       ├── boundary.geojson    Bulgaria's national outline (mask + bounds)
 │       ├── cities.geojson      261 official towns/cities
@@ -105,5 +109,6 @@ convert to the same GeoJSON shape used in `public/data/`.
 
 - City and site pins use town/landmark-level coordinates, not exact street
   addresses — fine for a checklist map, not for turn-by-turn navigation.
-- Your progress lives in this browser only. Clearing site data, or opening
-  the app in a different browser/device, starts fresh.
+- Progress is tied to your account and synced via Supabase, so it follows
+  you across browsers and devices once you're signed in. An account is
+  required to use the app.
