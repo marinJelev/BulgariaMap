@@ -100,7 +100,17 @@
   </aside>
 </div>
 
+<div class="badge-toast hidden" id="badge-toast" role="status" aria-live="polite">
+  <div class="badge-toast-icon" id="badge-toast-icon"></div>
+  <div class="badge-toast-body">
+    <div class="badge-toast-title" id="badge-toast-title"></div>
+    <div class="badge-toast-subtitle" id="badge-toast-subtitle"></div>
+  </div>
+  <button type="button" class="badge-toast-close" id="badge-toast-close" aria-label="Dismiss">×</button>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

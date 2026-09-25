@@ -42,6 +42,21 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let currentUser = null;
 
+// appReady only flips true once BOTH the site data has loaded AND the
+// initial auth check (session restore + any cloud merge) has settled.
+// Badge-celebration logic checks this flag so reloading the app never
+// re-celebrates badges you already had — only a genuine new threshold
+// crossed during this session does.
+let siteDataReady = false;
+let authSettled = false;
+let appReady = false;
+function maybeFinishInitialSettle() {
+  if (siteDataReady && authSettled && !appReady) {
+    updateSitesProgress(); // sets correct baseline 'earned' classes, still silently (appReady is false here)
+    appReady = true;
+  }
+}
+
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
@@ -289,7 +304,7 @@ document.getElementById('auth-signout').addEventListener('click', async () => {
   refreshAllMarkerIcons();
 });
 
-supabaseClient.auth.onAuthStateChange((event, session) => {
+supabaseClient.auth.onAuthStateChange(async (event, session) => {
   if (event === 'PASSWORD_RECOVERY') {
     document.getElementById('auth-modal-overlay').classList.remove('hidden');
     setAuthMode('reset-confirm');
@@ -298,10 +313,14 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
   if (session && session.user) {
     currentUser = session.user;
     showSignedInUI(currentUser);
-    if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'USER_UPDATED') pullAndMergeProgress();
+    if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'USER_UPDATED') await pullAndMergeProgress();
   } else {
     currentUser = null;
     showSignedOutUI();
+  }
+  if (event === 'INITIAL_SESSION') {
+    authSettled = true;
+    maybeFinishInitialSettle();
   }
 });
 
@@ -595,10 +614,14 @@ fetch('data/tourist-sites.json')
 
     renderSitesList();
     updateSitesProgress();
+    siteDataReady = true;
+    maybeFinishInitialSettle();
   })
   .catch(err => {
     console.error('Failed to load tourist site data', err);
     document.getElementById('sites-list').innerHTML = '<li class="empty">Could not load site data.</li>';
+    siteDataReady = true;
+    maybeFinishInitialSettle();
   });
 
 function popupHtml(props) {
@@ -621,6 +644,72 @@ function toggleSite(id) {
   updateSitesProgress();
 }
 
+/* ---------------- Badge celebration ----------------
+   celebrateBadge() only fires when appReady is true (see the
+   siteDataReady/authSettled/maybeFinishInitialSettle machinery below),
+   so loading the app with badges you already earned never re-celebrates
+   them — only genuinely crossing a threshold during this session does. */
+
+const BADGE_TIERS = {
+  bronze: { emoji: '🥉', label: 'Bronze', colors: ['#B8804F', '#8B5E34', '#D9A876'] },
+  silver: { emoji: '🥈', label: 'Silver', colors: ['#C7CDD6', '#9AA3AE', '#EDEFF2'] },
+  gold:   { emoji: '🥇', label: 'Gold',   colors: ['#C9A54A', '#E8C468', '#8A6D2E'] }
+};
+
+function fireConfetti(colors) {
+  if (typeof confetti !== 'function') return; // library failed to load — fail silently, toast still shows
+  confetti({ particleCount: 140, spread: 100, origin: { y: 0.4 }, colors });
+  const end = Date.now() + 2200;
+  (function frame() {
+    confetti({ particleCount: 4, angle: 60, spread: 55, origin: { x: 0 }, colors });
+    confetti({ particleCount: 4, angle: 120, spread: 55, origin: { x: 1 }, colors });
+    if (Date.now() < end) requestAnimationFrame(frame);
+  })();
+}
+
+let badgeToastQueue = [];
+let badgeToastShowing = false;
+
+function showBadgeToast(tier, title, subtitle) {
+  const toast = document.getElementById('badge-toast');
+  toast.className = `badge-toast badge-toast--${tier}`;
+  document.getElementById('badge-toast-icon').textContent = BADGE_TIERS[tier].emoji;
+  document.getElementById('badge-toast-title').textContent = title;
+  document.getElementById('badge-toast-subtitle').textContent = subtitle;
+  requestAnimationFrame(() => toast.classList.add('show'));
+}
+
+function hideBadgeToast() {
+  const toast = document.getElementById('badge-toast');
+  toast.classList.remove('show');
+}
+
+function processBadgeToastQueue() {
+  if (badgeToastShowing || badgeToastQueue.length === 0) return;
+  badgeToastShowing = true;
+  const { tier, title, subtitle } = badgeToastQueue.shift();
+  showBadgeToast(tier, title, subtitle);
+  setTimeout(() => {
+    hideBadgeToast();
+    setTimeout(() => {
+      badgeToastShowing = false;
+      processBadgeToastQueue();
+    }, 300); // matches the CSS hide transition
+  }, 5000);
+}
+
+document.getElementById('badge-toast-close').addEventListener('click', () => {
+  hideBadgeToast();
+  setTimeout(() => { badgeToastShowing = false; processBadgeToastQueue(); }, 300);
+});
+
+function celebrateBadge(tier, threshold) {
+  const { label, colors } = BADGE_TIERS[tier];
+  fireConfetti(colors);
+  badgeToastQueue.push({ tier, title: `${label} badge earned!`, subtitle: `You've reached ${threshold} distinct points.` });
+  processBadgeToastQueue();
+}
+
 function pointsVisitedCount() {
   const groupsWithVisit = new Set();
   allSiteFeatures.forEach(f => {
@@ -637,8 +726,13 @@ function updateSitesProgress() {
   const attractionsVisited = allSiteFeatures.filter(f => visitedSites[f.properties.id]).length;
   document.getElementById('sites-attractions-visited').textContent = attractionsVisited;
 
-  [['badge-bronze', 25], ['badge-silver', 50], ['badge-gold', 100]].forEach(([id, threshold]) => {
-    document.getElementById(id).classList.toggle('earned', count >= threshold);
+  const tiers = [['badge-bronze', 25, 'bronze'], ['badge-silver', 50, 'silver'], ['badge-gold', 100, 'gold']];
+  tiers.forEach(([id, threshold, tier]) => {
+    const el = document.getElementById(id);
+    const wasEarned = el.classList.contains('earned');
+    const nowEarned = count >= threshold;
+    el.classList.toggle('earned', nowEarned);
+    if (appReady && !wasEarned && nowEarned) celebrateBadge(tier, threshold);
   });
 }
 
