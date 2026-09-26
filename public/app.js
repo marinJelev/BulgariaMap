@@ -651,18 +651,21 @@ function toggleSite(id) {
    them — only genuinely crossing a threshold during this session does. */
 
 const BADGE_TIERS = {
-  bronze: { emoji: '🥉', label: 'Bronze', colors: ['#B8804F', '#8B5E34', '#D9A876'] },
-  silver: { emoji: '🥈', label: 'Silver', colors: ['#C7CDD6', '#9AA3AE', '#EDEFF2'] },
-  gold:   { emoji: '🥇', label: 'Gold',   colors: ['#C9A54A', '#E8C468', '#8A6D2E'] }
+  bronze: { emoji: '🥉', label: 'Bronze' },
+  silver: { emoji: '🥈', label: 'Silver' },
+  gold:   { emoji: '🥇', label: 'Gold' }
 };
 
-function fireConfetti(colors) {
+const CONFETTI_COLORS = ['#F72585', '#F7B32B', '#2EC4B6', '#4CC9F0', '#7209B7', '#FFD60A', '#F2545B'];
+
+function fireConfetti() {
   if (typeof confetti !== 'function') return; // library failed to load — fail silently, toast still shows
-  confetti({ particleCount: 140, spread: 100, origin: { y: 0.4 }, colors });
+  const opts = { colors: CONFETTI_COLORS, zIndex: 9999 };
+  confetti({ ...opts, particleCount: 160, spread: 110, origin: { y: 0.4 } });
   const end = Date.now() + 2200;
   (function frame() {
-    confetti({ particleCount: 4, angle: 60, spread: 55, origin: { x: 0 }, colors });
-    confetti({ particleCount: 4, angle: 120, spread: 55, origin: { x: 1 }, colors });
+    confetti({ ...opts, particleCount: 5, angle: 60, spread: 55, origin: { x: 0 } });
+    confetti({ ...opts, particleCount: 5, angle: 120, spread: 55, origin: { x: 1 } });
     if (Date.now() < end) requestAnimationFrame(frame);
   })();
 }
@@ -704,8 +707,8 @@ document.getElementById('badge-toast-close').addEventListener('click', () => {
 });
 
 function celebrateBadge(tier, threshold) {
-  const { label, colors } = BADGE_TIERS[tier];
-  fireConfetti(colors);
+  const { label } = BADGE_TIERS[tier];
+  fireConfetti();
   badgeToastQueue.push({ tier, title: `${label} badge earned!`, subtitle: `You've reached ${threshold} distinct points.` });
   processBadgeToastQueue();
 }
