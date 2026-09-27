@@ -692,13 +692,6 @@ function processBadgeToastQueue() {
   badgeToastShowing = true;
   const { tier, title, subtitle } = badgeToastQueue.shift();
   showBadgeToast(tier, title, subtitle);
-  setTimeout(() => {
-    hideBadgeToast();
-    setTimeout(() => {
-      badgeToastShowing = false;
-      processBadgeToastQueue();
-    }, 300); // matches the CSS hide transition
-  }, 5000);
 }
 
 document.getElementById('badge-toast-close').addEventListener('click', () => {
